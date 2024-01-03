@@ -74,6 +74,7 @@ class CustomModel(CalvinBaseModel):
         self.goal_image_seq = None
         self.action_seq = None
         self.combined_images = None
+        self.episode_result = None
 
         # Other necessary variables for running rollouts
         self.goal_image = None
@@ -92,6 +93,11 @@ class CustomModel(CalvinBaseModel):
             episode_log_dir = os.path.join(self.log_dir, "ep" + str(self.episode_counter))
             if not os.path.exists(episode_log_dir):
                 os.makedirs(episode_log_dir)
+
+            # log task success if the information is there
+            if self.episode_result is not None:
+                with open(os.path.join(episode_log_dir, "result.txt"), "w") as f:
+                    f.write(str(self.episode_result))
 
             # Log the language task
             with open(os.path.join(episode_log_dir, "language_task.txt"), "w") as f:
@@ -209,7 +215,8 @@ def evaluate_policy(model, env, epoch=0, eval_log_dir=None, debug=False, create_
         eval_sequences = tqdm(eval_sequences, position=0, leave=True)
 
     for initial_state, eval_sequence in eval_sequences:
-        result = evaluate_sequence(env, model, task_oracle, initial_state, eval_sequence, val_annotations, plans, debug)
+        sequence_results = evaluate_sequence(env, model, task_oracle, initial_state, eval_sequence, val_annotations, plans, debug)
+        result = np.sum(sequence_results)
         results.append(result)
         if not debug:
             eval_sequences.set_description(
@@ -230,6 +237,8 @@ def evaluate_sequence(env, model, task_checker, initial_state, eval_sequence, va
     robot_obs, scene_obs = get_env_state_for_initial_condition(initial_state)
     env.reset(robot_obs=robot_obs, scene_obs=scene_obs)
 
+    rollout_results = []
+
     success_counter = 0
     if debug:
         time.sleep(1)
@@ -239,11 +248,12 @@ def evaluate_sequence(env, model, task_checker, initial_state, eval_sequence, va
         print("Subtask: ", end="")
     for subtask in eval_sequence:
         success = rollout(env, model, task_checker, subtask, val_annotations, plans, debug)
+        rollout_results.append(success)
         if success:
             success_counter += 1
         else:
             return success_counter
-    return success_counter
+    return rollout_results
 
 
 def rollout(env, model, task_oracle, subtask, val_annotations, plans, debug):
@@ -276,9 +286,11 @@ def rollout(env, model, task_oracle, subtask, val_annotations, plans, debug):
         if len(current_task_info) > 0:
             if debug:
                 print(colored("success", "green"), end=" ")
+            model.episode_result = True
             return True
     if debug:
         print(colored("fail", "red"), end=" ")
+    model.episode_result = False
     return False
 
 
@@ -318,7 +330,7 @@ def main():
 
     parser.add_argument("--eval_log_dir", default=None, type=str, help="Where to log the evaluation results.")
 
-    parser.add_argument("--device", default=0, type=int, help="CUDA device")
+    parser.add_argument("--device", default=2, type=int, help="CUDA device")
     args = parser.parse_args()
 
     # evaluate a custom model

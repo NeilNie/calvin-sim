@@ -179,11 +179,11 @@ class GCPolicy:
 
         # Prepare action buffer for temporal ensembling
         self.action_buffer = np.zeros((4, 4, 7))
-        self.action_buffer_mask = np.zeros((4, 4), dtype=np.bool)
+        self.action_buffer_mask = np.zeros((4, 4), dtype=bool)
 
     def reset(self):
         self.action_buffer = np.zeros((4, 4, 7))
-        self.action_buffer_mask = np.zeros((4, 4), dtype=np.bool)
+        self.action_buffer_mask = np.zeros((4, 4), dtype=bool)
 
     def predict_action(self, image_obs : np.ndarray, goal_image : np.ndarray):
         action = self.agent.sample_actions(
@@ -205,11 +205,11 @@ class GCPolicy:
         self.action_buffer_mask = self.action_buffer_mask * np.array([[True, True, True, True],
                                                                       [True, True, True, False],
                                                                       [True, True, False, False],
-                                                                      [True, False, False, False]], dtype=np.bool)
+                                                                      [True, False, False, False]], dtype=bool)
 
         # Add to action buffer
         self.action_buffer[0] = action
-        self.action_buffer_mask[0] = np.array([True, True, True, True], dtype=np.bool)
+        self.action_buffer_mask[0] = np.array([True, True, True, True], dtype=bool)
         
         # Ensemble temporally to predict action
         action_prediction = np.sum(self.action_buffer[:, 0, :] * self.action_buffer_mask[:, 0:1], axis=0) / np.sum(self.action_buffer_mask[:, 0], axis=0)
